@@ -1,0 +1,205 @@
+[gd_scene load_steps=8 format=3 uid="uid://dgq3y1gmrollk"]
+
+[ext_resource type="Script" uid="uid://cr36f8bsp27jj" path="res://svg_idea.gd" id="1_iqfwq"]
+[ext_resource type="Script" uid="uid://sljx3teypyhu" path="res://tool_selector.gd" id="2_f2px1"]
+[ext_resource type="Script" uid="uid://dkeidt2ddyn1y" path="res://palette.gd" id="2_i1q3w"]
+[ext_resource type="Script" uid="uid://bjtf6u8ls3a82" path="res://svg_string.gd" id="4_nq4g0"]
+[ext_resource type="Script" uid="uid://ipp8rjuhrxdm" path="res://tile_selector.gd" id="5_b1etf"]
+[ext_resource type="Script" uid="uid://caeknp6owyyh7" path="res://saved_popup.gd" id="5_wkmia"]
+[ext_resource type="Script" uid="uid://b8h11vcldgawu" path="res://stats.gd" id="6_1gk3g"]
+
+[node name="SVGIdea" type="Node2D"]
+script = ExtResource("1_iqfwq")
+
+[node name="Labels" type="Node2D" parent="."]
+modulate = Color(1, 1, 1, 0.666667)
+
+[node name="Tool" type="Label" parent="Labels"]
+offset_left = 20.0
+offset_top = 20.0
+offset_right = 320.0
+offset_bottom = 54.0
+theme_override_font_sizes/font_size = 24
+text = "Tool"
+
+[node name="Canvas" type="Label" parent="Labels"]
+offset_left = 164.0
+offset_top = 20.0
+offset_right = 464.0
+offset_bottom = 54.0
+theme_override_font_sizes/font_size = 24
+text = "Canvas"
+
+[node name="TileSet" type="Label" parent="Labels"]
+offset_left = 514.0
+offset_top = 20.0
+offset_right = 700.0
+offset_bottom = 54.0
+theme_override_font_sizes/font_size = 24
+text = "Tileset"
+
+[node name="Paths" type="Label" parent="Labels"]
+offset_left = 514.0
+offset_top = 308.0
+offset_right = 700.0
+offset_bottom = 342.0
+theme_override_font_sizes/font_size = 24
+text = "Paths"
+
+[node name="XML" type="Label" parent="Labels"]
+offset_left = 714.0
+offset_top = 308.0
+offset_right = 900.0
+offset_bottom = 342.0
+theme_override_font_sizes/font_size = 24
+text = "XML"
+
+[node name="CanvasBorder" type="Node2D" parent="."]
+
+[node name="Line2D" type="Line2D" parent="CanvasBorder"]
+modulate = Color(0.501961, 0.501961, 0.501961, 1)
+points = PackedVector2Array(164, 72, 452, 72)
+width = 2.0
+begin_cap_mode = 1
+end_cap_mode = 1
+
+[node name="Line2D2" type="Line2D" parent="CanvasBorder"]
+modulate = Color(0.501961, 0.501961, 0.501961, 1)
+points = PackedVector2Array(452, 72, 452, 504)
+width = 2.0
+begin_cap_mode = 1
+end_cap_mode = 1
+
+[node name="Line2D3" type="Line2D" parent="CanvasBorder"]
+modulate = Color(0.501961, 0.501961, 0.501961, 1)
+points = PackedVector2Array(164, 504, 452, 504)
+width = 2.0
+begin_cap_mode = 1
+end_cap_mode = 1
+
+[node name="Line2D4" type="Line2D" parent="CanvasBorder"]
+modulate = Color(0.501961, 0.501961, 0.501961, 1)
+points = PackedVector2Array(164, 72, 164, 504)
+width = 2.0
+begin_cap_mode = 1
+end_cap_mode = 1
+
+[node name="Tool" type="Node2D" parent="."]
+position = Vector2(20, 71)
+script = ExtResource("2_f2px1")
+
+[node name="ColorRect2" type="ColorRect" parent="Tool"]
+offset_right = 72.0
+offset_bottom = 72.0
+color = Color(0.333333, 0.333333, 0.333333, 1)
+
+[node name="Selector" type="TextureButton" parent="Tool"]
+offset_right = 72.0
+offset_bottom = 72.0
+
+[node name="ColorRect" type="ColorRect" parent="Tool"]
+offset_top = 92.0
+offset_right = 72.0
+offset_bottom = 164.0
+color = Color(0.333333, 0.333333, 0.333333, 1)
+
+[node name="Maker" type="TextureButton" parent="Tool"]
+offset_top = 92.0
+offset_right = 72.0
+offset_bottom = 164.0
+
+[node name="ColorRect3" type="ColorRect" parent="Tool"]
+visible = false
+offset_left = 184.0
+offset_right = 256.0
+offset_bottom = 72.0
+color = Color(0.333333, 0.333333, 0.333333, 1)
+
+[node name="Painter" type="TextureButton" parent="Tool"]
+visible = false
+offset_left = 184.0
+offset_right = 256.0
+offset_bottom = 72.0
+
+[node name="HContainer" type="Node2D" parent="."]
+
+[node name="VContainer" type="Node2D" parent="."]
+
+[node name="Palette" type="Node2D" parent="."]
+visible = false
+script = ExtResource("2_i1q3w")
+
+[node name="XML" type="Label" parent="."]
+offset_left = 714.0
+offset_top = 360.0
+offset_right = 1024.0
+offset_bottom = 860.0
+theme_override_colors/font_color = Color(0.535156, 0.535156, 0.535156, 1)
+theme_override_font_sizes/font_size = 8
+autowrap_mode = 3
+script = ExtResource("4_nq4g0")
+
+[node name="CopiedPopup" type="Label" parent="."]
+unique_name_in_owner = true
+offset_left = 801.0
+offset_top = 320.0
+offset_right = 1111.0
+offset_bottom = 420.0
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.78431374)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 2
+theme_override_font_sizes/font_size = 14
+autowrap_mode = 3
+
+[node name="SavedPopup" type="Label" parent="."]
+offset_left = 163.0
+offset_top = 513.0
+offset_right = 259.0
+offset_bottom = 558.0
+theme_override_colors/font_color = Color(1, 1, 0.63671875, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 2
+theme_override_font_sizes/font_size = 14
+text = "Saved!"
+autowrap_mode = 3
+script = ExtResource("5_wkmia")
+
+[node name="Stats" type="Label" parent="."]
+offset_left = 287.0
+offset_top = 513.0
+offset_right = 453.0
+offset_bottom = 580.0
+theme_override_font_sizes/font_size = 14
+text = "RenderCount: 0
+SaveCount: 0"
+horizontal_alignment = 2
+autowrap_mode = 3
+script = ExtResource("6_1gk3g")
+
+[node name="Layers" type="Node2D" parent="."]
+
+[node name="SaveButton" type="Button" parent="."]
+visible = false
+offset_left = 345.0
+offset_top = 24.0
+offset_right = 389.0
+offset_bottom = 55.0
+text = "Save"
+
+[node name="LoadButton" type="Button" parent="."]
+visible = false
+offset_left = 406.0
+offset_top = 24.0
+offset_right = 452.0
+offset_bottom = 55.0
+text = "Load"
+
+[node name="TileSelector" type="Node2D" parent="."]
+position = Vector2(514, 72)
+script = ExtResource("5_b1etf")
+
+[connection signal="gui_input" from="XML" to="XML" method="_on_gui_input"]
+[connection signal="pressed" from="SaveButton" to="." method="_on_save_button_pressed"]
+[connection signal="pressed" from="LoadButton" to="." method="_on_load_button_pressed"]
