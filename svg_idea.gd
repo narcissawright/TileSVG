@@ -222,6 +222,11 @@ func handle_mouse_button(event:InputEventMouseButton) -> void:
 			#zoom_out(event.factor)
 		#MOUSE_BUTTON_WHEEL_DOWN:
 			#zoom_in(event.factor)
+			
+	
+
+func keycheck(event:InputEventKey) -> bool:
+	return event.pressed and not $TileSelector.tileset_is_last_click_context
 
 func handle_key(event:InputEventKey) -> void:
 	match event.keycode:
@@ -232,29 +237,104 @@ func handle_key(event:InputEventKey) -> void:
 				else:
 					undo()
 		KEY_C:
-			if event.pressed and event.ctrl_pressed and $Tool.current == "selector":
+			if event.pressed and event.ctrl_pressed: # and $Tool.current == "selector":
 				if $TileSelector.tileset_is_last_click_context:
 					copied_path = ''
 				else:
 					copy_selected_path()
 		KEY_V:
-			if event.pressed and event.ctrl_pressed and $Tool.current == "selector":
+			if event.pressed and event.ctrl_pressed: # and $Tool.current == "selector":
 				paste_copied_path()
 		KEY_UP:
-			if event.pressed and $Tool.current == "selector" and not $TileSelector.tileset_is_last_click_context:
+			if keycheck(event):
 				try_move(0,-1)
 		KEY_DOWN:
-			if event.pressed and $Tool.current == "selector" and not $TileSelector.tileset_is_last_click_context:
+			if keycheck(event):
 				try_move(0,1)
 		KEY_LEFT:
-			if event.pressed and $Tool.current == "selector" and not $TileSelector.tileset_is_last_click_context:
+			if keycheck(event):
 				try_move(-1,0)
 		KEY_RIGHT:
-			if event.pressed and $Tool.current == "selector" and not $TileSelector.tileset_is_last_click_context:
+			if keycheck(event):
 				try_move(1,0)
 		KEY_DELETE:
-			if event.pressed and $Tool.current == "selector" and not $TileSelector.tileset_is_last_click_context:
-					delete_path(selected_path_idx)
+			if keycheck(event):
+				delete_path(selected_path_idx)
+		KEY_BRACKETLEFT:
+			if keycheck(event):
+				transform_path(selected_path_idx, 'rotate_cw')
+		KEY_BRACKETRIGHT:
+			if keycheck(event):
+				transform_path(selected_path_idx, 'rotate_ccw')
+		KEY_H:
+			if keycheck(event):
+				transform_path(selected_path_idx, 'flip_h')
+		KEY_F:
+			if keycheck(event):
+				transform_path(selected_path_idx, 'flip_v')
+
+func transform_path(path_idx: int, mode: String) -> void:
+	if not path_exists(path_idx):
+		return
+
+	var segs = paths[path_idx].split('|', false)
+
+	# Collect points
+	var points: Array[Vector2i] = []
+	for seg in segs:
+		var parts = seg.split(' ')
+		for i in range(1, parts.size()):
+			points.append(str_to_v2i(parts[i]))
+
+	if points.is_empty():
+		return
+
+	# Bounding box
+	var min_x = points[0].x
+	var max_x = points[0].x
+	var min_y = points[0].y
+	var max_y = points[0].y
+	for p in points:
+		min_x = min(min_x, p.x)
+		max_x = max(max_x, p.x)
+		min_y = min(min_y, p.y)
+		max_y = max(max_y, p.y)
+
+	var pivot = Vector2i(min_x, min_y)
+	var width = max_x - min_x
+	var height = max_y - min_y
+
+	# Transform points
+	for i in range(points.size()):
+		var p = points[i] - pivot
+		match mode:
+			"flip_h":
+				p.x = width - p.x
+			"flip_v":
+				p.y = height - p.y
+			"rotate_cw":
+				p = Vector2i(height - p.y, p.x)
+			"rotate_ccw":
+				p = Vector2i(p.y, width - p.x)
+		points[i] = p + pivot
+
+	# Rebuild the path
+	var new_segs: Array[String] = []
+	var idx = 0
+	for seg in segs:
+		var parts = seg.split(' ')
+		var cmd = parts[0]
+		var new_seg: Array[String] = [cmd]
+		for i in range(1, parts.size()):
+			var p = points[idx]
+			new_seg.append("%d,%d" % [p.x, p.y])
+			idx += 1
+		new_segs.append(' '.join(new_seg))
+
+	add_history()
+	paths[path_idx] = '|'.join(new_segs)
+	render_svg()
+	save_svg()
 
 func copy_selected_path() -> void:
 	if path_exists(selected_path_idx):
