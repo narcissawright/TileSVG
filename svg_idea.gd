@@ -11,10 +11,11 @@ var svgInterface:Sprite2D
 var svgPreview:Sprite2D
 var svgString:String
 
-const PREVIEW_SCALE = 2.0
-const PREVIEW_COPIES_X = 32
-const PREVIEW_COPIES_Y = 8
-const HOVER_DIST = 0.35
+const PREVIEW_SCALE:float = 2.0
+const PREVIEW_COPIES_X:int = 32
+const PREVIEW_COPIES_Y:int = 8
+const HOVER_DIST:float = 0.3
+const CTRL_PT_OFFSET:float = 0.075
 
 const CANVAS_X = 164.0
 const LAYERS_X = 514.0
@@ -167,7 +168,7 @@ func handle_mouse_motion() -> void:
 	match $Tool.current:
 		"maker":
 			if dist < HOVER_DIST and within_grid(nearest):
-				activate_interface(nearest) # any valid grid coord is highlighted.
+				activate_interface(nearest, "maker") # any valid grid coord is highlighted.
 		
 		"selector":
 			if dist < HOVER_DIST:
@@ -371,10 +372,10 @@ func handle_selector_mousemotion(nearest:Vector2i) -> void:
 					points.append(split[3])
 		for point in points:
 			if nearest == str_to_v2i(point):
-				activate_interface(nearest)
+				activate_interface(nearest, "selector")
 		for point in ctrl_pts:
 			if nearest == str_to_v2i(point):
-				activate_interface(nearest)
+				activate_interface(nearest, "selector")
 
 func handle_maker_clickdrag() -> void:
 	var coord:Vector2i = mousegrid_round()
@@ -523,82 +524,67 @@ func collapse_adjacent_duplicate_points(segments: PackedStringArray) -> PackedSt
 
 	return cleaned
 
-func activate_interface(where:Vector2i) -> void:
+func make_highlight_circle(where:Vector2i) -> String:
+	return '<circle r="0.2" cx="' + str(where.x+1) + '" cy="' + str(where.y+1) + '" stroke="#ffff99" stroke-width="0.1" fill="none" />'
+
+func activate_interface(where:Vector2i, tool:String) -> void:
 	svgInterface.show()
 
-	# Yellow circle at cursor
-	var circle1 = '<circle r="0.2" cx="' + str(where.x+1) + '" cy="' + str(where.y+1) + '" stroke="#ffff99" stroke-width="0.1" fill="none" />'
+	var circle1:String = ""
+	var circle2:String = ""
+	
+	if tool == "maker":
+		circle1 = make_highlight_circle(where)
+	elif tool == "selector":
+		if path_exists(selected_path_idx):
+			var segments:PackedStringArray = paths[selected_path_idx].split('|', false)
+			var mouse_pos:Vector2 = mousegrid()
 
-	# Red circle at nearest control point using offset
-	var nearest_cp_offset:Vector2
-	var best_dist:float = INF
-	var visual_offset:float = 0.1
+			# --- Check if a regular anchor exists at `where` ---
+			var found_anchor:bool = false
+			for s_str in segments:
+				var s = s_str.split(' ', false)
+				var anchor:Vector2i = Vector2i.ZERO
 
-	if path_exists(selected_path_idx):
-		var segments:PackedStringArray = paths[selected_path_idx].split('|', false)
-		var mouse_pos:Vector2 = mousegrid()
+				if s[0] == "M":
+					anchor = str_to_v2i(s[1])
+				elif s[0] == "C":
+					anchor = str_to_v2i(s[3])
+				
+				if anchor == where:
+					found_anchor = true
+					break
 
-		for j in range(segments.size()):
-			var s = segments[j].split(' ', false)
-			if s[0] != "C":
-				continue
+			# Create yellow circle once if an anchor exists
+			if found_anchor:
+				circle1 = make_highlight_circle(where)
 
-			for which in [1, 2]:
-				var offset_point:Vector2 = get_control_offset(j, which, segments, visual_offset)
-				var dist:float = mouse_pos.distance_to(offset_point)
-				if dist < best_dist:
-					best_dist = dist
-					nearest_cp_offset = offset_point
+			# --- Red circle at nearest control point using offset ---
+			var nearest_cp_offset:Vector2
+			var best_dist:float = INF
 
-	var circle2 = ""
-	if nearest_cp_offset != null:
-		circle2 = '<circle r="0.1" cx="' + str(nearest_cp_offset.x+1) + '" cy="' + str(nearest_cp_offset.y+1) + '" stroke="none" fill="#ffffff" />'
+			for j in range(segments.size()):
+				var s = segments[j].split(' ', false)
+				if s[0] != "C":
+					continue
+
+				for which in [1, 2]:
+					var offset_point:Vector2 = get_control_offset(j, which, segments)
+					var dist:float = mouse_pos.distance_to(offset_point)
+					if dist < best_dist:
+						best_dist = dist
+						nearest_cp_offset = offset_point
+			
+			if best_dist < HOVER_DIST:
+				circle2 = '<circle r="0.1125" cx="' + str(nearest_cp_offset.x+1) + '" cy="' + str(nearest_cp_offset.y+1) + '" stroke="none" fill="#ffffff" />'
 
 	var interfaceString = svgHead(true) + circle1 + circle2 + '</svg>'
 	var img := Image.new()
 	img.load_svg_from_string(interfaceString, zoomscale)
 	svgInterface.texture = ImageTexture.create_from_image(img)
 
-func get_control_offset_along_curve(seg_idx:int, which:int, segments:PackedStringArray, offset_amount:float) -> Vector2:
-	var s:PackedStringArray = segments[seg_idx].split(' ', false)
-
-	var control:Vector2
-	if which == 1:
-		control = str_to_v2i(s[1])
-	else:
-		control = str_to_v2i(s[2])
-
-	# Previous segment
-	var prev_idx:int = seg_idx - 1
-	if prev_idx < 0:
-		prev_idx = segments.size() - 1
-	var ps:PackedStringArray = segments[prev_idx].split(' ', false)
-	var prev_anchor:Vector2
-	if ps[0] == "C":
-		prev_anchor = str_to_v2i(ps[3])
-	else:
-		prev_anchor = str_to_v2i(ps[1])
-
-	var next_anchor:Vector2 = str_to_v2i(s[3])
-
-	var tangent:Vector2
-
-	if which == 1:
-		tangent = 3 * (control - prev_anchor)
-	else:
-		tangent = 3 * (next_anchor - control)
-
-	if tangent.length() > 0.0001:
-		tangent = tangent.normalized()
-	else:
-		tangent = Vector2.ZERO
-
-	# Offset along curve
-	var offset_point:Vector2 = control + tangent * offset_amount
-	return offset_point
-
 # Helper to compute the "offset" position for a control point
-func get_control_offset(seg_idx:int, which:int, segments:PackedStringArray, visual_offset:float) -> Vector2:
+func get_control_offset(seg_idx:int, which:int, segments:PackedStringArray) -> Vector2:
 	var s:PackedStringArray = segments[seg_idx].split(' ', false)
 
 	# Control coordinate
@@ -636,7 +622,7 @@ func get_control_offset(seg_idx:int, which:int, segments:PackedStringArray, visu
 			dir = dir.normalized()
 		else:
 			dir = Vector2.ZERO
-		offset_point = control + dir * visual_offset
+		offset_point = control + dir * CTRL_PT_OFFSET
 	else:
 		# Control not at anchor → offset back toward its anchor
 		var anchor:Vector2
@@ -650,19 +636,9 @@ func get_control_offset(seg_idx:int, which:int, segments:PackedStringArray, visu
 			dir = dir.normalized()
 		else:
 			dir = Vector2.ZERO
-		offset_point = control + dir * visual_offset
+		offset_point = control + dir * CTRL_PT_OFFSET
 
 	return offset_point
-
-func activate_interface3(where:Vector2i) -> void:
-	# This shows the interface (which is used as a flag elsewhere), 
-	# and visually draws a circle at that location.
-	svgInterface.show()
-	var circle = '<circle r="0.2" cx="'+str(where.x+1)+'" cy="'+str(where.y+1)+'" stroke="#ffff99" stroke-width="0.1" fill="none" />'
-	var interfaceString = svgHead(true) + circle + '</svg>'
-	var img := Image.new()
-	img.load_svg_from_string(interfaceString, zoomscale)
-	svgInterface.texture = ImageTexture.create_from_image(img)
 
 func try_move(x:int, y:int) -> void:
 	if path_exists(selected_path_idx):
@@ -825,12 +801,11 @@ func right_click_select() -> void:
 
 	var best_candidate = null
 	var best_dist:float = INF
-	var visual_offset:float = 0.1
 
 	for cand in candidates:
 		var seg_idx:int = cand[1]
 		var which:int = cand[2]
-		var offset_point:Vector2 = get_control_offset(seg_idx, which, segments, visual_offset)
+		var offset_point:Vector2 = get_control_offset(seg_idx, which, segments)
 		var dist:float = mouse_pos.distance_to(offset_point)
 
 		if dist < best_dist:
@@ -988,15 +963,14 @@ func render_svg() -> void:
 					
 					var diff:Vector2i = end_pt - prev_pt
 					
-					var move_amt:float = 0.1
 					if ctrl_pt_1 == prev_pt:
-						ctrl_viz_1 = Vector2(prev_pt) + (Vector2(diff).normalized() * move_amt)
+						ctrl_viz_1 = Vector2(prev_pt) + (Vector2(diff).normalized() * CTRL_PT_OFFSET)
 					else:
-						ctrl_viz_1 = ctrl_viz_1.move_toward(prev_pt, move_amt)
+						ctrl_viz_1 = ctrl_viz_1.move_toward(prev_pt, CTRL_PT_OFFSET)
 					if ctrl_pt_2 == end_pt:
-						ctrl_viz_2 = Vector2(end_pt) - (Vector2(diff).normalized() * move_amt)
+						ctrl_viz_2 = Vector2(end_pt) - (Vector2(diff).normalized() * CTRL_PT_OFFSET)
 					else:
-						ctrl_viz_2 = ctrl_viz_2.move_toward(end_pt, move_amt)
+						ctrl_viz_2 = ctrl_viz_2.move_toward(end_pt, CTRL_PT_OFFSET)
 					
 					controlpts += line_from_to(ctrl_viz_1 + Vector2.ONE, Vector2(prev_pt) + Vector2.ONE)
 					controlpts += line_from_to(ctrl_viz_2 + Vector2.ONE, Vector2(end_pt) + Vector2.ONE)
