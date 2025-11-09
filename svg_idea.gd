@@ -186,9 +186,13 @@ func handle_mouse_button(event:InputEventMouseButton) -> void:
 					return
 				if svgInterface.visible:
 					match $Tool.current:
-						"maker": makepath()
-						"selector": left_click_select()
-						#"painter": paint()
+						"maker": 
+							makepath()
+							start_drag()
+						"selector": 
+							left_click_select()
+						#"painter": 
+							#paint()
 				else:
 					if $Tool.current == "selector":
 						var prev_selected = selected_path_idx
@@ -379,19 +383,28 @@ func handle_selector_mousemotion(nearest:Vector2i) -> void:
 
 func handle_maker_clickdrag() -> void:
 	var coord:Vector2i = mousegrid_round()
-	if paths.is_empty(): return
-	var segments:PackedStringArray = get_segments(paths.size()-1)
-	if segments.is_empty(): return
-	var final_segment:String = segments[segments.size()-1]
+	if paths.is_empty(): 
+		return
+	var segments:PackedStringArray = get_segments(paths.size() - 1)
+	if segments.is_empty(): 
+		return
+	# --- Get the last actual segment (skip Z) ---
+	var last_idx = segments.size() - 1
+	if segments[last_idx] == "Z" and last_idx > 0:
+		last_idx -= 1
+	var final_segment:String = segments[last_idx]
 	var components:PackedStringArray = final_segment.split(' ', false)
-	if components.size() < 3: return
-	var ctrl_pt_2:Vector2i = str_to_v2i(components[2])
-	if coord != ctrl_pt_2:
-		components[2] = v2i_to_str(coord)
-		final_segment = ' '.join(components)
-		segments[segments.size()-1] = final_segment
-		paths[paths.size()-1] = '|'.join(segments)
-		render_svg()
+	if components.size() < 3: 
+		return
+	# Only update control point if this is a C segment
+	if components[0] == "C":
+		var ctrl_pt_2:Vector2i = str_to_v2i(components[2])
+		if coord != ctrl_pt_2:
+			components[2] = v2i_to_str(coord)
+			final_segment = ' '.join(components)
+			segments[last_idx] = final_segment
+			paths[paths.size() - 1] = '|'.join(segments)
+			render_svg()
 
 func handle_selector_clickdrag() -> void:
 	if selected_point.size() == 3:
@@ -512,20 +525,32 @@ func collapse_adjacent_duplicate_points(segments: PackedStringArray) -> PackedSt
 				last_kept_point = p
 			else:
 				# Skip this segment (it is redundant — its endpoint duplicates the previous)
-				# Do nothing (this is the key difference from your old code)
 				pass
 
 	# Handle closed: if path is closed and last kept endpoint equals first endpoint,
 	# we may want to ensure Z is present and not duplicate endpoints. Append "Z" if original had it.
 	if closed:
 		#if cleaned.size() > 2:
-			## Keep it open if it is merely a line.
+			# Keep it open if it is merely a line.
 		cleaned.append("Z")
 
 	return cleaned
 
 func make_highlight_circle(where:Vector2i) -> String:
 	return '<circle r="0.2" cx="' + str(where.x+1) + '" cy="' + str(where.y+1) + '" stroke="#ffff99" stroke-width="0.1" fill="none" />'
+
+func get_final_point(segments:PackedStringArray) -> Vector2i:
+	if segments.is_empty():
+		return Vector2i.ZERO
+	# Start from the last segment and walk backwards
+	for i in range(segments.size() - 1, -1, -1):
+		var s = segments[i].split(' ', false)
+		if s[0] == "M":
+			return str_to_v2i(s[1])
+		elif s[0] == "C":
+			return str_to_v2i(s[3])
+	# Fallback
+	return Vector2i.ZERO
 
 func activate_interface(where:Vector2i, tool:String) -> void:
 	svgInterface.show()
@@ -534,7 +559,13 @@ func activate_interface(where:Vector2i, tool:String) -> void:
 	var circle2:String = ""
 	
 	if tool == "maker":
-		circle1 = make_highlight_circle(where)
+		if path_exists(selected_path_idx):
+			var segments:PackedStringArray = get_segments(selected_path_idx)
+			if where != get_final_point(segments):
+				circle1 = make_highlight_circle(where)
+		else:
+			circle1 = make_highlight_circle(where)
+	
 	elif tool == "selector":
 		if path_exists(selected_path_idx):
 			var segments:PackedStringArray = paths[selected_path_idx].split('|', false)
@@ -820,8 +851,6 @@ func makepath() -> void:
 	if not within_grid(coord):
 		return
 	
-	add_history()
-	
 	var path:String = ''
 	if not paths.is_empty():
 		if not paths.back().ends_with('Z'):
@@ -830,6 +859,7 @@ func makepath() -> void:
 	var nextpoint:String = v2i_to_str(coord)
 	if path.is_empty():
 		path = 'M ' + nextpoint
+		add_history() # add to history before appending
 		paths.append(path)
 	else:
 		# This is fragile and could be reworked.
@@ -839,6 +869,7 @@ func makepath() -> void:
 		
 		if nextpoint == prevpoint:
 			return
+		add_history() # we add history here as we know a change is coming.
 		
 		# for now the control points will be at the prevpoint and the nextpoint, making it straight
 		path += '|'
@@ -857,6 +888,7 @@ func makepath() -> void:
 	selected_path_idx = paths.size() - 1
 	render_svg()
 	save_svg()
+	svgInterface.hide()
 
 func delete_path(idx: int) -> void:
 	if not path_exists(idx):
@@ -938,7 +970,8 @@ func render_svg() -> void:
 		# Make Overlay
 		var prev_pt:Vector2i
 		var pathviz:String = ''
-		var segments:PackedStringArray = paths[selected_path_idx].split('|', false)
+		var segments:PackedStringArray = get_segments(selected_path_idx)
+		
 		for segment in segments:
 			var s = segment.split(' ', false)
 			# s[0] is the letter, s[1,2,3] are the coords.
