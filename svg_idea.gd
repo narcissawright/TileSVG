@@ -212,7 +212,7 @@ func handle_mouse_button(event:InputEventMouseButton) -> void:
 							right_click_select()
 						#"painter":
 							#paint(Vector2i(mousegrid), 'empty')
-				start_drag()
+					start_drag()
 			else:
 				end_drag()
 		
@@ -262,10 +262,10 @@ func handle_key(event:InputEventKey) -> void:
 				delete_path(selected_path_idx)
 		KEY_BRACKETLEFT:
 			if keycheck(event):
-				transform_path(selected_path_idx, 'rotate_cw')
+				transform_path(selected_path_idx, 'rotate_ccw')
 		KEY_BRACKETRIGHT:
 			if keycheck(event):
-				transform_path(selected_path_idx, 'rotate_ccw')
+				transform_path(selected_path_idx, 'rotate_cw')
 		KEY_H:
 			if keycheck(event):
 				transform_path(selected_path_idx, 'flip_h')
@@ -354,6 +354,7 @@ func paste_copied_path() -> void:
 	save_svg()
 
 func handle_selector_mousemotion(nearest:Vector2i) -> void:
+	# All this does, is activate_interface(nearest) if nearest is a point or ctrl_pt position.
 	var points:Array = []
 	var ctrl_pts:Array = []
 	if path_exists(selected_path_idx):
@@ -452,7 +453,7 @@ func handle_selector_clickdrag() -> void:
 
 			render_svg()
 			#save_svg()
-			
+	
 	elif selected_point.size() == 0:
 		# moving the entire path
 		if selected_path_idx >= 0 and selected_path_idx < paths.size():
@@ -523,6 +524,139 @@ func collapse_adjacent_duplicate_points(segments: PackedStringArray) -> PackedSt
 	return cleaned
 
 func activate_interface(where:Vector2i) -> void:
+	svgInterface.show()
+
+	# Yellow circle at cursor
+	var circle1 = '<circle r="0.2" cx="' + str(where.x+1) + '" cy="' + str(where.y+1) + '" stroke="#ffff99" stroke-width="0.1" fill="none" />'
+
+	# Red circle at nearest control point using offset
+	var nearest_cp_offset:Vector2
+	var best_dist:float = INF
+	var visual_offset:float = 0.1
+
+	if path_exists(selected_path_idx):
+		var segments:PackedStringArray = paths[selected_path_idx].split('|', false)
+		var mouse_pos:Vector2 = mousegrid()
+
+		for j in range(segments.size()):
+			var s = segments[j].split(' ', false)
+			if s[0] != "C":
+				continue
+
+			for which in [1, 2]:
+				var offset_point:Vector2 = get_control_offset(j, which, segments, visual_offset)
+				var dist:float = mouse_pos.distance_to(offset_point)
+				if dist < best_dist:
+					best_dist = dist
+					nearest_cp_offset = offset_point
+
+	var circle2 = ""
+	if nearest_cp_offset != null:
+		circle2 = '<circle r="0.1" cx="' + str(nearest_cp_offset.x+1) + '" cy="' + str(nearest_cp_offset.y+1) + '" stroke="none" fill="#ffffff" />'
+
+	var interfaceString = svgHead(true) + circle1 + circle2 + '</svg>'
+	var img := Image.new()
+	img.load_svg_from_string(interfaceString, zoomscale)
+	svgInterface.texture = ImageTexture.create_from_image(img)
+
+func get_control_offset_along_curve(seg_idx:int, which:int, segments:PackedStringArray, offset_amount:float) -> Vector2:
+	var s:PackedStringArray = segments[seg_idx].split(' ', false)
+
+	var control:Vector2
+	if which == 1:
+		control = str_to_v2i(s[1])
+	else:
+		control = str_to_v2i(s[2])
+
+	# Previous segment
+	var prev_idx:int = seg_idx - 1
+	if prev_idx < 0:
+		prev_idx = segments.size() - 1
+	var ps:PackedStringArray = segments[prev_idx].split(' ', false)
+	var prev_anchor:Vector2
+	if ps[0] == "C":
+		prev_anchor = str_to_v2i(ps[3])
+	else:
+		prev_anchor = str_to_v2i(ps[1])
+
+	var next_anchor:Vector2 = str_to_v2i(s[3])
+
+	var tangent:Vector2
+
+	if which == 1:
+		tangent = 3 * (control - prev_anchor)
+	else:
+		tangent = 3 * (next_anchor - control)
+
+	if tangent.length() > 0.0001:
+		tangent = tangent.normalized()
+	else:
+		tangent = Vector2.ZERO
+
+	# Offset along curve
+	var offset_point:Vector2 = control + tangent * offset_amount
+	return offset_point
+
+# Helper to compute the "offset" position for a control point
+func get_control_offset(seg_idx:int, which:int, segments:PackedStringArray, visual_offset:float) -> Vector2:
+	var s:PackedStringArray = segments[seg_idx].split(' ', false)
+
+	# Control coordinate
+	var control:Vector2
+	if which == 1:
+		control = str_to_v2i(s[1])
+	else:
+		control = str_to_v2i(s[2])
+
+	# Previous segment
+	var prev_idx:int = seg_idx - 1
+	if prev_idx < 0:
+		prev_idx = segments.size() - 1
+	var ps:PackedStringArray = segments[prev_idx].split(' ', false)
+	var prev_anchor:Vector2
+	if ps[0] == "C":
+		prev_anchor = str_to_v2i(ps[3])
+	else:
+		prev_anchor = str_to_v2i(ps[1])
+
+	var next_anchor:Vector2 = str_to_v2i(s[3])
+
+	# Determine offset
+	var offset_point:Vector2
+	if (which == 1 and control == prev_anchor) or (which == 2 and control == next_anchor):
+		# Control coincides with anchor → offset toward next anchor
+		var target_anchor:Vector2
+		if which == 1:
+			target_anchor = next_anchor
+		else:
+			target_anchor = prev_anchor
+
+		var dir:Vector2 = target_anchor - control
+		if dir.length() > 0.0001:
+			dir = dir.normalized()
+		else:
+			dir = Vector2.ZERO
+		offset_point = control + dir * visual_offset
+	else:
+		# Control not at anchor → offset back toward its anchor
+		var anchor:Vector2
+		if which == 1:
+			anchor = prev_anchor
+		else:
+			anchor = next_anchor
+
+		var dir:Vector2 = anchor - control
+		if dir.length() > 0.0001:
+			dir = dir.normalized()
+		else:
+			dir = Vector2.ZERO
+		offset_point = control + dir * visual_offset
+
+	return offset_point
+
+func activate_interface3(where:Vector2i) -> void:
+	# This shows the interface (which is used as a flag elsewhere), 
+	# and visually draws a circle at that location.
 	svgInterface.show()
 	var circle = '<circle r="0.2" cx="'+str(where.x+1)+'" cy="'+str(where.y+1)+'" stroke="#ffff99" stroke-width="0.1" fill="none" />'
 	var interfaceString = svgHead(true) + circle + '</svg>'
@@ -664,23 +798,47 @@ func left_click_select() -> void:
 					selected_point = [selected_path_idx,j,3]
 
 func right_click_select() -> void:
-	if not path_exists(selected_path_idx): return
+	if not path_exists(selected_path_idx):
+		return
+
 	var segments:PackedStringArray = paths[selected_path_idx].split('|', false)
+	var mouse_pos:Vector2 = mousegrid()
 	var coord:Vector2i = mousegrid_round()
-	var selected_candidates:Array = []
+	var candidates:Array = []
+
+	# collect candidates under cursor
 	for j in range(segments.size()):
 		var s = segments[j].split(' ', false)
-		# s[0] is the letter, s[1,2,3] are the coords.
-		match s[0]:
-			'C':
-				if coord == str_to_v2i(s[1]):
-					selected_candidates.append([selected_path_idx,j,1])
-					selected_point = [selected_path_idx,j,1]
-				elif coord == str_to_v2i(s[2]):
-					selected_candidates.append([selected_path_idx,j,2])
-					selected_point = [selected_path_idx,j,2]
-	
-	#print (selected_candidates)
+		if s[0] != "C":
+			continue
+
+		var c1:Vector2i = str_to_v2i(s[1])
+		var c2:Vector2i = str_to_v2i(s[2])
+
+		if coord == c1:
+			candidates.append([selected_path_idx, j, 1])
+		if coord == c2:
+			candidates.append([selected_path_idx, j, 2])
+
+	if candidates.size() == 0:
+		return
+
+	var best_candidate = null
+	var best_dist:float = INF
+	var visual_offset:float = 0.1
+
+	for cand in candidates:
+		var seg_idx:int = cand[1]
+		var which:int = cand[2]
+		var offset_point:Vector2 = get_control_offset(seg_idx, which, segments, visual_offset)
+		var dist:float = mouse_pos.distance_to(offset_point)
+
+		if dist < best_dist:
+			best_dist = dist
+			best_candidate = cand
+
+	if best_candidate != null:
+		selected_point = best_candidate
 
 func makepath() -> void:
 	var coord:Vector2i = mousegrid_round()
@@ -830,7 +988,7 @@ func render_svg() -> void:
 					
 					var diff:Vector2i = end_pt - prev_pt
 					
-					var move_amt:float = 0.075
+					var move_amt:float = 0.1
 					if ctrl_pt_1 == prev_pt:
 						ctrl_viz_1 = Vector2(prev_pt) + (Vector2(diff).normalized() * move_amt)
 					else:
