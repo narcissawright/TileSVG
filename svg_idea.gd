@@ -9,7 +9,6 @@ var svgSprite:Sprite2D
 var svgOverlay:Sprite2D
 var svgInterface:Sprite2D
 var svgPreview:Sprite2D
-var svgString:String
 
 const PREVIEW_SCALE:float = 2.0
 const PREVIEW_COPIES_X:int = 32
@@ -955,23 +954,20 @@ func paint(tile:Vector2i, tiletype:String = 'pixel') -> void:
 			path = '|'.join(segments) + '|'
 	
 	render_svg()
-	
 
 func render_svg() -> void:
 	if $Layers.get_child_count() != paths.size():
 		sync_layers_ui()
 	
+	# Make Overlay
+	# The overlay uses a different coordinate system which adds 1,1 to all points.
+	var overlay:String = ''
 	var circles:String = ''
 	var controlpts:String = ''
-	
-	var overlay:String = ''
-	
 	if selected_path_idx != -1 and not paths.is_empty():
-		# Make Overlay
 		var prev_pt:Vector2i
 		var pathviz:String = ''
 		var segments:PackedStringArray = get_segments(selected_path_idx)
-		
 		for segment in segments:
 			var s = segment.split(' ', false)
 			# s[0] is the letter, s[1,2,3] are the coords.
@@ -1022,50 +1018,32 @@ func render_svg() -> void:
 					pathviz += 'Z'
 			
 		overlay = '<path d="'+ pathviz.replace('|', ' ') +'" style="stroke:#000;stroke-width:0.1;fill:none" />'
-	
-	var complete_paths:PackedStringArray
-	var nostyle_paths:PackedStringArray
-	
-	for path in paths:
-		complete_paths.append('<path d="'+ path.replace('|', ' ') +'" style="stroke:none;fill:'+ layercolor +'" />')
-	for path in paths:
-		nostyle_paths.append('<path d="'+ path.replace('|', ' ') +'" />')
-	
-	var nostyleString = svgHead(false)
-	for path in nostyle_paths:
-		nostyleString += path
-	nostyleString += '</svg>'
-	
-	svgString = svgHead(false)
-	for path in complete_paths:
-		svgString += path
-	svgString += '</svg>'
-	
-	$XML.update_text(nostyleString)
 
-	var img := Image.new()
-	img.load_svg_from_string(svgString, zoomscale)
-	svgSprite.texture = ImageTexture.create_from_image(img)
+	# Build SVG strings
+	var raw_paths = ""
+	var complete_paths = ""
+	for path in paths:
+		raw_paths += '<path d="'+ path.replace('|', ' ') +'" />'
+		complete_paths += '<path d="'+ path.replace('|', ' ') +'" style="stroke:none;fill:'+ layercolor +'" />'
+	var svgRawString = svgHead(false) + raw_paths + "</svg>"
+	var svgBaseString = svgHead(false) + complete_paths + "</svg>"
+	var overlayString = svgHead(true) + overlay + circles + controlpts + "</svg>"
 	
-	img = Image.new()
-	img.load_svg_from_string(svgString, PREVIEW_SCALE)
-	$TileSelector.get_node("Tile_" + str(current_tile_idx)).texture = ImageTexture.create_from_image(img)
+	# Update XML textbox
+	$XML.update_text(svgRawString)
 	
-	#for c in get_children():
-		#if c.name.begins_with('prev'):
-			#c.texture = svgPreview.texture
-	
-	svgString = svgHead(true)
-	svgString += overlay
-	svgString += circles
-	svgString += controlpts
-	svgString += '</svg>'
-	
-	img = Image.new()
-	img.load_svg_from_string(svgString, zoomscale)
-	svgOverlay.texture = ImageTexture.create_from_image(img)
-	
-	emit_signal('rendered')
+	# Update textures
+	svgSprite.texture = svg_to_texture(svgBaseString, zoomscale)
+	# The tile graphic will also use the layercolor instead of the raw, as it is the active tile.
+	$TileSelector.get_node("Tile_" + str(current_tile_idx)).texture = svg_to_texture(svgBaseString, PREVIEW_SCALE)
+	svgOverlay.texture = svg_to_texture(overlayString, zoomscale)
+
+	emit_signal("rendered")
+
+func svg_to_texture(xml:String, scale_multiplier:float) -> ImageTexture:
+	var img = Image.new()
+	img.load_svg_from_string(xml, scale_multiplier)
+	return ImageTexture.create_from_image(img)
 
 func delete_invisible_or_zero_area_paths(rect: Rect2i) -> void:
 	var kept_paths: Array[String] = []
