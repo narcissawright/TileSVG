@@ -44,8 +44,6 @@ func set_tool(tool_name: String) -> void:
 	if has_signal("tool_changed"):
 		emit_signal("tool_changed", tool_name)
 
-	
-
 func get_icon(icon:String, mode:String) -> String:
 	
 	var bordercolor:String = '#808080'
@@ -71,14 +69,19 @@ func get_icon(icon:String, mode:String) -> String:
 	# Icon
 	match icon:
 		"maker":
-			svgString += '<line x1="36" y1="0" x2="36"  y2="72" stroke="#808080" stroke-width="2" />'
-			svgString += '<line x1="0"  y1="36" x2="71" y2="36" stroke="#808080" stroke-width="2" />'
+			svgString += '<line x1="36" y1="0" x2="36"  y2="72" stroke="#666666" stroke-width="2" />'
+			svgString += '<line x1="0"  y1="36" x2="71" y2="36" stroke="#666666" stroke-width="2" />'
 			svgString += '<line x1="0"  y1="72" x2="36" y2="36" stroke="#000000" stroke-width="4" />'
 			svgString += '<circle cx="36" cy="36" r="10" />'
 		"selector":
 			#svgString += '<line x1="0"  y1="49" x2="72"  y2="9"  stroke="#000000" stroke-width="4" />'
 			svgString += '<path fill="#fff" stroke="#000" stroke-width="2" d="M32,32 l0,30 l7.5,-7.5 l10.5,0 l-18,-22.5 Z"/>'
-	
+		"painter":
+			svgString += '<line x1="0" y1="20" x2="72"  y2="20" stroke="#606060" stroke-width="2" />'
+			svgString += '<line x1="0"  y1="52" x2="72" y2="52" stroke="#606060" stroke-width="2" />'
+			svgString += '<line x1="20"  y1="0" x2="20" y2="72" stroke="#606060" stroke-width="2" />'
+			svgString += '<line x1="52"  y1="0" x2="52" y2="72" stroke="#606060" stroke-width="2" />'
+			svgString += '<rect fill="#ccc" x="20" y="20" width="32" height="32" stroke-width="2" stroke="none" />'
 	# Border
 	svgString += '<line x1="1"  y1="1"  x2="71" y2="1"  stroke="'+ bordercolor +'" stroke-width="2" />'
 	svgString += '<line x1="71" y1="1"  x2="71" y2="71" stroke="'+ bordercolor +'" stroke-width="2" />'

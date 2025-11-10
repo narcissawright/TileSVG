@@ -1,7 +1,7 @@
 extends LineEdit
 
 var path_index:int
-var prev_valid_color:String = '888888'
+var prev_valid_color:String = ''
 
 func _ready() -> void:
 	var stylebox = StyleBoxFlat.new()
@@ -10,6 +10,7 @@ func _ready() -> void:
 	add_theme_stylebox_override("focus", stylebox)
 
 func valid_color(fillcolor:String) -> bool:
+	if fillcolor == '': return true # it's ok for it to be nothing.
 	if not fillcolor.is_valid_html_color(): return false
 	if fillcolor.length() == 3 or fillcolor.length() == 6:
 		return true
@@ -28,10 +29,13 @@ func _on_text_changed(new_text:String) -> void:
 		text = filtered
 		caret_column = min(old_caret, filtered.length())
 	
-	if text.length() == 3 or text.length() == 6:
+	if text.length() == 3 or text.length() == 6 or text.length() == 0:
 		prev_valid_color = text
 		Events.emit_signal('layer_color_changed', path_index, text)
-		get_parent().get_node('LayerColor').color = Color(text)
+		if text == '':
+			get_parent().get_node('LayerColor').color = Color(Palette.DEFAULT)
+		else:
+			get_parent().get_node('LayerColor').color = Color(text)
 
 func _unhandled_input(event):
 	if event is InputEventMouseButton and event.pressed:

@@ -19,7 +19,7 @@ const CTRL_PT_OFFSET:float = 0.075
 const CANVAS_X = 164.0
 const LAYERS_X = 514.0
 
-var layercolor = "#CCC"
+var layercolor:String
 
 var history:Array # for undo
 var future:Array # for redo
@@ -67,6 +67,8 @@ func delete_path_if_zero_area(path_idx:int) -> void:
 			delete_path(path_idx)
 
 func _ready() -> void:
+	layercolor = Palette.DEFAULT
+	
 	$TileSelector.connect("tile_selected", Callable(self, "_on_tile_selected"))
 	$TileSelector.connect("copypaste_tile", Callable(self, "_on_copypaste_tile"))
 	$TileSelector.connect("clear_tile", Callable(self, "_on_clear_tile"))
@@ -139,6 +141,7 @@ func make_line(start:Vector2, end:Vector2, type:String, i:int) -> void:
 		"v": $VContainer.add_child(line)
 
 func _input(event) -> void:
+	# might want to store mouspos here once and not read it again.
 	if event is InputEventMouseMotion:
 		handle_mouse_motion()
 	elif event is InputEventMouseButton:
@@ -152,14 +155,8 @@ func handle_mouse_motion() -> void:
 		match $Tool.current:
 			"maker": handle_maker_clickdrag()
 			"selector": handle_selector_clickdrag()
-			#"painter":
-				#if Rect2(Vector2.ZERO, gridsize).has_point(mousegrid.floor()):
-					#if Input.get_mouse_button_mask() & MOUSE_BUTTON_MASK_RIGHT == MOUSE_BUTTON_MASK_RIGHT:
-						#paint(Vector2i(mousegrid), 'empty')
-					#else:
-						#paint(Vector2i(mousegrid))
-		# Clickdrag has been handled, return
-		return
+			"painter": handle_painter_clickdrag()
+		return # Clickdrag has been handled, return
 	
 	# Mouse Motion but not clicking+dragging:
 	var nearest:Vector2i = mousegrid_round()
@@ -172,10 +169,84 @@ func handle_mouse_motion() -> void:
 		"selector":
 			if dist < HOVER_DIST:
 				handle_selector_mousemotion(nearest) # only points on the path are highlighted
-				
-		#"painter":
-			#if Rect2(Vector2.ZERO, gridsize).has_point(mousegrid.floor()):
-				#activate_tile(mousegrid.floor())
+		
+		"painter":
+			var pixelcoord := Vector2(mousegrid())
+			if within_pixel_grid(pixelcoord):
+				activate_tile(pixelcoord)
+
+
+
+func handle_painter_clickdrag() -> void:
+	var erasing: bool = Input.get_mouse_button_mask() & MOUSE_BUTTON_MASK_RIGHT == MOUSE_BUTTON_MASK_RIGHT
+	var start_pos: Vector2 = clickdrag_startpos
+	var end_pos: Vector2 = mousegrid()  # float mouse position in grid coords
+	
+	# Generate all pixels along the line
+	for pixelcoord in get_line_pixels(start_pos, end_pos):
+		if within_pixel_grid(pixelcoord):
+			if erasing:
+				remove_pixel(pixelcoord)
+			else:
+				add_pixel(pixelcoord)
+	
+	clickdrag_startpos = end_pos  # Update drag start
+
+func get_line_pixels(a: Vector2, b: Vector2) -> Array:
+	var pixels = []
+
+	var x0 = a.x
+	var y0 = a.y
+	var x1 = b.x
+	var y1 = b.y
+
+	var dx = abs(x1 - x0)
+	var dy = abs(y1 - y0)
+
+	var step_x = 1
+	if x1 < x0:
+		step_x = -1
+	var step_y = 1
+	if y1 < y0:
+		step_y = -1
+
+	var x = x0
+	var y = y0
+	var last_pix = Vector2i(-1, -1)
+
+	if dx > dy:
+		var error = dx / 2.0
+		while floor(x) != floor(x1):
+			var pix = Vector2i(floor(x), floor(y))
+			if pix != last_pix:
+				pixels.append(pix)
+				last_pix = pix
+
+			x += step_x
+			error -= dy
+			if error < 0:
+				y += step_y
+				error += dx
+	else:
+		var error = dy / 2.0
+		while floor(y) != floor(y1):
+			var pix = Vector2i(floor(x), floor(y))
+			if pix != last_pix:
+				pixels.append(pix)
+				last_pix = pix
+
+			y += step_y
+			error -= dx
+			if error < 0:
+				x += step_x
+				error += dy
+
+	# Append the last pixel
+	var final_pix = Vector2i(floor(x1), floor(y1))
+	if pixels.size() == 0 or pixels[pixels.size() - 1] != final_pix:
+		pixels.append(final_pix)
+
+	return pixels
 
 func handle_mouse_button(event:InputEventMouseButton) -> void:
 	match event.button_index:
@@ -190,44 +261,38 @@ func handle_mouse_button(event:InputEventMouseButton) -> void:
 							start_drag()
 						"selector": 
 							left_click_select()
-						#"painter": 
-							#paint()
+						"painter": 
+							start_drag()
+							add_pixel(Vector2i(mousegrid()))
+							svgInterface.hide()
 				else:
 					if $Tool.current == "selector":
 						var prev_selected = selected_path_idx
 						deselect_path()
 						for i in range (paths.size()):
-							if is_point_in_fill(paths[i], mousegrid()):
-								selected_path_idx = i
+							if i == get_pixel_path_index():
+								var floored_string:String = v2i_to_str(Vector2i(mousegrid()))
+								if paths[i].contains(floored_string):
+									selected_path_idx = i
+							else:
+								if is_point_in_fill(paths[i], mousegrid()):
+									selected_path_idx = i
 						if prev_selected != selected_path_idx:
 							render_svg()
-				if $Tool.current == 'maker':
-					if svgInterface.visible:
 						start_drag()
-				else:
-					start_drag()
 			else:
 				end_drag()
 		MOUSE_BUTTON_RIGHT:
 			if event.pressed:
 				if svgInterface.visible:
-					match $Tool.current:
-						"selector":
-							right_click_select()
-						#"painter":
-							#paint(Vector2i(mousegrid), 'empty')
 					start_drag()
+					match $Tool.current:
+						'selector': right_click_select()
+						'painter': 
+							remove_pixel(Vector2i(mousegrid()))
+							svgInterface.hide()
 			else:
 				end_drag()
-		
-		#MOUSE_BUTTON_MIDDLE:
-			#mid_clickdrag = event.pressed
-		#MOUSE_BUTTON_WHEEL_UP:
-			#zoom_out(event.factor)
-		#MOUSE_BUTTON_WHEEL_DOWN:
-			#zoom_in(event.factor)
-			
-	
 
 func keycheck(event:InputEventKey) -> bool:
 	return event.pressed and not $TileSelector.tileset_is_last_click_context
@@ -380,8 +445,12 @@ func handle_selector_mousemotion(nearest:Vector2i) -> void:
 			if nearest == str_to_v2i(point):
 				activate_interface(nearest, "selector")
 
+func nearest_in_bounds(point:Vector2i) -> Vector2i:
+	return point.clamp(Vector2i.ZERO, gridsize)
+
 func handle_maker_clickdrag() -> void:
 	var coord:Vector2i = mousegrid_round()
+	#coord = nearest_in_bounds(coord)
 	if paths.is_empty(): 
 		return
 	var segments:PackedStringArray = get_segments(paths.size() - 1)
@@ -416,7 +485,8 @@ func handle_selector_clickdrag() -> void:
 		
 		var components:PackedStringArray = segments[seg_idx].split(' ', false)
 		var current_pos:Vector2i = str_to_v2i(components[comp_idx])
-		var diff:Vector2i = mousegrid_round() - current_pos
+		var coord:Vector2i = mousegrid_round()
+		var diff:Vector2i = coord - current_pos
 		
 		if diff != Vector2i.ZERO:
 			adjust_segment(seg_idx, comp_idx, diff, segments)
@@ -535,6 +605,48 @@ func collapse_adjacent_duplicate_points(segments: PackedStringArray) -> PackedSt
 
 	return cleaned
 
+func get_pixel_path_index() -> int:
+	for i in range(paths.size()):
+		# will break if h and v lines are added to another tool.
+		if paths[i].contains("h1"):
+			return i
+	return -1
+
+func add_pixel(coord:Vector2i) -> void:
+	var idx:int = get_pixel_path_index()
+	var seg = "M %d,%d h1 v1 h-1 Z" % [coord.x, coord.y]
+	if idx == -1:
+		paths.append(seg)
+	elif not paths[idx].contains(seg):
+		if paths[idx] != "": # might  be unnecessary
+			paths[idx] += "|"
+		paths[idx] += seg
+	else:
+		return # no change
+	render_svg()
+
+
+func parse_path(d:String) -> Dictionary:
+	return {}
+
+
+func remove_pixel(coord:Vector2i) -> void:
+	var idx:int = get_pixel_path_index()
+	if idx == -1: 
+		return
+	var seg = "M %d,%d h1 v1 h-1 Z" % [coord.x, coord.y]
+	var segments:PackedStringArray = get_segments(idx)
+	print (segments)
+	print (seg)
+	print (segments.has(seg))
+	var change:bool = segments.erase(seg)
+	if change:
+		if segments.size() == 0:
+			delete_path(idx)
+		else:
+			paths[idx] = "|".join(segments)
+		render_svg()
+
 func make_highlight_circle(where:Vector2i) -> String:
 	return '<circle r="0.2" cx="' + str(where.x+1) + '" cy="' + str(where.y+1) + '" stroke="#ffff99" stroke-width="0.1" fill="none" />'
 
@@ -550,6 +662,15 @@ func get_final_point(segments:PackedStringArray) -> Vector2i:
 			return str_to_v2i(s[3])
 	# Fallback
 	return Vector2i.ZERO
+
+func activate_tile(coord:Vector2i) -> void:
+	svgInterface.show()
+	var interfaceString:String = svgHead(true)
+	interfaceString += '<path d="'
+	interfaceString += 'M %d,%d h1 v1 h-1 Z' % [coord.x+1, coord.y+1]
+	interfaceString += '" style="fill:#888"/>'
+	interfaceString += '</svg>'
+	svgInterface.texture = svg_to_texture(interfaceString, zoomscale)
 
 func activate_interface(where:Vector2i, tool:String) -> void:
 	svgInterface.show()
@@ -609,9 +730,7 @@ func activate_interface(where:Vector2i, tool:String) -> void:
 				circle2 = '<circle r="0.1125" cx="' + str(nearest_cp_offset.x+1) + '" cy="' + str(nearest_cp_offset.y+1) + '" stroke="none" fill="#ffffff" />'
 
 	var interfaceString = svgHead(true) + circle1 + circle2 + '</svg>'
-	var img := Image.new()
-	img.load_svg_from_string(interfaceString, zoomscale)
-	svgInterface.texture = ImageTexture.create_from_image(img)
+	svgInterface.texture = svg_to_texture(interfaceString, zoomscale)
 
 # Helper to compute the "offset" position for a control point
 func get_control_offset(seg_idx:int, which:int, segments:PackedStringArray) -> Vector2:
@@ -718,22 +837,23 @@ func add_history() -> void:
 
 func append_to_history(state:Dictionary) -> void:
 	history.append(state)
+	pre_drag_state.clear()
 	future.clear()
 	emit_signal('history_modified', history.size(), future.size())
-
-func start_drag() -> void:
-	clickdrag = true
-	clickdrag_startpos = mousegrid()
-	pre_drag_state = get_snapshot()
 
 func get_segments(path_idx:int) -> PackedStringArray:
 	if path_exists(path_idx):
 		return paths[path_idx].split('|', false)
 	return PackedStringArray()
 
+func start_drag() -> void:
+	clickdrag = true
+	clickdrag_startpos = mousegrid()
+	pre_drag_state = get_snapshot()
+
 func end_drag() -> void:
-	# moving a single point
 	if selected_point.size() == 3:
+		# moving a single point
 		var path_idx:int = selected_point[0]
 		var segments:PackedStringArray = get_segments(path_idx)
 		segments = collapse_adjacent_duplicate_points(segments)
@@ -750,6 +870,9 @@ func end_drag() -> void:
 		return
 	if paths != pre_drag_state.paths:
 		append_to_history(pre_drag_state.duplicate(true))
+		
+		# if path is oob delete path
+		
 		render_svg()
 		save_svg()
 	
@@ -779,7 +902,7 @@ func sync_layers_ui() -> void:
 		if colorstring.begins_with("#"):
 			colorstring = colorstring.substr(1)
 		var hex_node = layer.get_node("HexValue")
-		hex_node.text = colorstring
+		#hex_node.text = colorstring
 		hex_node.path_index = i
 
 func adjust_segment(idx:int, pos:int, diff:Vector2i, segments:PackedStringArray) -> void:
@@ -913,48 +1036,6 @@ func delete_path(idx: int) -> void:
 	render_svg()
 	save_svg()
 
-
-func paint(tile:Vector2i, tiletype:String = 'pixel') -> void:
-	add_history()
-	
-	var path:String = ''
-	#var path:Dictionary = {
-		#'d': '',
-		#'fill': layercolor
-	#}
-	
-	if not paths.is_empty():
-		path = paths.back()
-	
-	var nextpoint:String = v2i_to_str(tile)
-	if path.is_empty():
-		paths.append(path)
-	
-	match tiletype:
-		'pixel':
-			var segments:PackedStringArray = path.split('|', false)
-			for i in range (segments.size()):
-				if segments[i] == ('M ' + nextpoint):
-					return
-			path += 'M ' + nextpoint + '|' 
-			path += 'L ' + v2i_to_str(tile + Vector2i.RIGHT) + '|'
-			path += 'L ' + v2i_to_str(tile + Vector2i(1,1)) + '|'
-			path += 'L ' + v2i_to_str(tile + Vector2i.DOWN) + '|'
-			path += 'Z' + '|'
-		'empty':
-			var segments:PackedStringArray = path.split('|', false)
-			for i in range (segments.size()):
-				if segments[i] == ('M ' + nextpoint):
-					var removecount:int = 1
-					while segments[i+removecount][0] != 'Z':
-						removecount += 1
-					for j in range (removecount+1):
-						segments.remove_at(i)
-					break
-			path = '|'.join(segments) + '|'
-	
-	render_svg()
-
 func render_svg() -> void:
 	if $Layers.get_child_count() != paths.size():
 		sync_layers_ui()
@@ -964,60 +1045,73 @@ func render_svg() -> void:
 	var overlay:String = ''
 	var circles:String = ''
 	var controlpts:String = ''
+	var pixelpath:bool = selected_path_idx == get_pixel_path_index()
 	if selected_path_idx != -1 and not paths.is_empty():
-		var prev_pt:Vector2i
 		var pathviz:String = ''
 		var segments:PackedStringArray = get_segments(selected_path_idx)
-		for segment in segments:
-			var s = segment.split(' ', false)
-			# s[0] is the letter, s[1,2,3] are the coords.
-			match s[0]:
-				'M':
-					var start_pt:Vector2i = str_to_v2i(s[1])
-					prev_pt = start_pt
-					circles += circle_at_coord(Vector2(start_pt) + Vector2.ONE,  Color(0,0,0), 0.2) 
-					pathviz += 'M ' + v2i_to_str(start_pt + Vector2i.ONE)
-				'L':
-					var end_pt:Vector2i = str_to_v2i(s[1])
-					circles += circle_at_coord(Vector2(end_pt) + Vector2.ONE,  Color(0,0,0), 0.2)
-					pathviz += 'L ' + v2i_to_str(end_pt + Vector2i.ONE)
-					prev_pt = end_pt
-				'C':
-					var ctrl_pt_1:Vector2i = str_to_v2i(s[1])
-					var ctrl_pt_2:Vector2i = str_to_v2i(s[2])
-					var end_pt:Vector2i    = str_to_v2i(s[3])
-					
-					var ctrl_viz_1:Vector2 = Vector2(ctrl_pt_1)
-					var ctrl_viz_2:Vector2 = Vector2(ctrl_pt_2)
-					
-					var diff:Vector2i = end_pt - prev_pt
-					
-					if ctrl_pt_1 == prev_pt:
-						ctrl_viz_1 = Vector2(prev_pt) + (Vector2(diff).normalized() * CTRL_PT_OFFSET)
-					else:
-						ctrl_viz_1 = ctrl_viz_1.move_toward(prev_pt, CTRL_PT_OFFSET)
-					if ctrl_pt_2 == end_pt:
-						ctrl_viz_2 = Vector2(end_pt) - (Vector2(diff).normalized() * CTRL_PT_OFFSET)
-					else:
-						ctrl_viz_2 = ctrl_viz_2.move_toward(end_pt, CTRL_PT_OFFSET)
-					
-					controlpts += line_from_to(ctrl_viz_1 + Vector2.ONE, Vector2(prev_pt) + Vector2.ONE)
-					controlpts += line_from_to(ctrl_viz_2 + Vector2.ONE, Vector2(end_pt) + Vector2.ONE)
-							
-					circles += circle_at_coord(Vector2(end_pt) + Vector2.ONE,  Color(0,0,0), 0.2)
-					controlpts += circle_at_coord(ctrl_viz_1 + Vector2.ONE,  Color(1,0,0), 0.1)
-					controlpts += circle_at_coord(ctrl_viz_2 + Vector2.ONE,  Color(1,0,0), 0.1)
-					
-					pathviz += ' '
-					pathviz += 'C ' + v2i_to_str(ctrl_pt_1 + Vector2i.ONE) + ' '
-					pathviz += v2i_to_str(ctrl_pt_2 + Vector2i.ONE) + ' '
-					pathviz += v2i_to_str(end_pt    + Vector2i.ONE) + ' '
+		if pixelpath:
+			# Draw outline for all pixels
+			for segment in segments:
+				# Expect segment in format "M x,y h1 v1 h-1 Z"
+				var s:PackedStringArray = segment.split(' ', false)
+				if s.size() >= 2 and s[0] == 'M':
+					var px:Vector2i = str_to_v2i(s[1])
+					var x = px.x + 1  # overlay uses +1,+1 offset
+					var y = px.y + 1
+					# Simple square outline
+					overlay += '<rect x="%d" y="%d" width="1" height="1" style="stroke:#f00;stroke-width:0.1;fill:none" />' % [x, y]
+		else:
+			# Standard path overlay (circles + control points)
+			var prev_pt:Vector2i
+			for segment in segments:
+				var s = segment.split(' ', false)
+				# s[0] is the letter, s[1,2,3] are the coords.
+				match s[0]:
+					'M':
+						var start_pt:Vector2i = str_to_v2i(s[1])
+						prev_pt = start_pt
+						circles += circle_at_coord(Vector2(start_pt) + Vector2.ONE,  Color(0,0,0), 0.2) 
+						pathviz += 'M ' + v2i_to_str(start_pt + Vector2i.ONE)
+					'L':
+						var end_pt:Vector2i = str_to_v2i(s[1])
+						circles += circle_at_coord(Vector2(end_pt) + Vector2.ONE,  Color(0,0,0), 0.2)
+						pathviz += 'L ' + v2i_to_str(end_pt + Vector2i.ONE)
+						prev_pt = end_pt
+					'C':
+						var ctrl_pt_1:Vector2i = str_to_v2i(s[1])
+						var ctrl_pt_2:Vector2i = str_to_v2i(s[2])
+						var end_pt:Vector2i    = str_to_v2i(s[3])
 						
-					prev_pt = end_pt
-				'Z':
-					pathviz += 'Z'
-			
-		overlay = '<path d="'+ pathviz.replace('|', ' ') +'" style="stroke:#000;stroke-width:0.1;fill:none" />'
+						var ctrl_viz_1:Vector2 = Vector2(ctrl_pt_1)
+						var ctrl_viz_2:Vector2 = Vector2(ctrl_pt_2)
+						
+						var diff:Vector2i = end_pt - prev_pt
+						
+						if ctrl_pt_1 == prev_pt:
+							ctrl_viz_1 = Vector2(prev_pt) + (Vector2(diff).normalized() * CTRL_PT_OFFSET)
+						else:
+							ctrl_viz_1 = ctrl_viz_1.move_toward(prev_pt, CTRL_PT_OFFSET)
+						if ctrl_pt_2 == end_pt:
+							ctrl_viz_2 = Vector2(end_pt) - (Vector2(diff).normalized() * CTRL_PT_OFFSET)
+						else:
+							ctrl_viz_2 = ctrl_viz_2.move_toward(end_pt, CTRL_PT_OFFSET)
+						
+						controlpts += line_from_to(ctrl_viz_1 + Vector2.ONE, Vector2(prev_pt) + Vector2.ONE)
+						controlpts += line_from_to(ctrl_viz_2 + Vector2.ONE, Vector2(end_pt) + Vector2.ONE)
+								
+						circles += circle_at_coord(Vector2(end_pt) + Vector2.ONE,  Color(0,0,0), 0.2)
+						controlpts += circle_at_coord(ctrl_viz_1 + Vector2.ONE,  Color(1,0,0), 0.1)
+						controlpts += circle_at_coord(ctrl_viz_2 + Vector2.ONE,  Color(1,0,0), 0.1)
+						
+						pathviz += ' '
+						pathviz += 'C ' + v2i_to_str(ctrl_pt_1 + Vector2i.ONE) + ' '
+						pathviz += v2i_to_str(ctrl_pt_2 + Vector2i.ONE) + ' '
+						pathviz += v2i_to_str(end_pt    + Vector2i.ONE) + ' '
+							
+						prev_pt = end_pt
+					'Z':
+						pathviz += 'Z'
+			overlay = '<path d="'+ pathviz.replace('|', ' ') +'" style="stroke:#000;stroke-width:0.1;fill:none" />'
 
 	# Build SVG strings
 	var raw_paths = ""
@@ -1027,7 +1121,11 @@ func render_svg() -> void:
 		complete_paths += '<path d="'+ path.replace('|', ' ') +'" style="stroke:none;fill:'+ layercolor +'" />'
 	var svgRawString = svgHead(false) + raw_paths + "</svg>"
 	var svgBaseString = svgHead(false) + complete_paths + "</svg>"
-	var overlayString = svgHead(true) + overlay + circles + controlpts + "</svg>"
+	var overlayString:String
+	if pixelpath:
+		overlayString = svgHead(true) + overlay + "</svg>"
+	else:
+		overlayString = svgHead(true) + overlay + circles + controlpts + "</svg>"
 	
 	# Update XML textbox
 	$XML.update_text(svgRawString)
@@ -1050,13 +1148,13 @@ func delete_invisible_or_zero_area_paths(rect: Rect2i) -> void:
 	for path in paths:
 		var segments: PackedStringArray = path.split("|", false)
 		var has_area := not is_zero_area_path(segments)
-		var bbox := get_path_bounds(segments)
+		var bbox:Rect2i = get_path_bounds(segments)
 		var in_canvas := rect.intersects(bbox)
 		
 		if has_area and in_canvas:
 			kept_paths.append(path)
 		else:
-			print("Removed hidden/empty path:", path)
+			pass #print("Removed hidden/empty path:", path)
 	
 	if kept_paths.size() != paths.size():
 		paths = kept_paths
@@ -1094,6 +1192,8 @@ func mousegrid_round() -> Vector2i:
 
 func within_grid(point:Vector2i) -> bool:
 	return point.x >= 0 and point.x <= gridsize.x and point.y >= 0 and point.y <= gridsize.y
+func within_pixel_grid(point:Vector2i) -> bool:
+	return point.x >= 0 and point.x < gridsize.x and point.y >= 0 and point.y < gridsize.y
 
 func v2i_to_str(v:Vector2i) -> String:
 	return str(v.x) + ',' + str(v.y)
@@ -1150,8 +1250,13 @@ func update_grid() -> void:
 	svgOverlay.position = gridpos - Vector2(zoomscale, zoomscale) # Consistent with _ready
 	svgInterface.position = gridpos - Vector2(zoomscale, zoomscale) # Consistent with _ready
 
+
+
 func layer_color_changed(_layerid, c) -> void:
-	layercolor = '#' + c
+	if c == '':
+		layercolor = Palette.DEFAULT
+	else:
+		layercolor = '#' + c
 	add_history()
 	#paths[layerid].fill = layercolor
 	render_svg()
@@ -1296,12 +1401,12 @@ func svg_to_internal_d(svg_d:String) -> String:
 	
 	# Remove spaces immediately before command letters
 	var regex_cleanup = RegEx.new()
-	regex_cleanup.compile(r"\s+(?=[MLCQZmlcqz])")
+	regex_cleanup.compile(r"\s+(?=[MLHVCQZmlhvcqz])")
 	svg_d = regex_cleanup.sub(svg_d, "", true)
 	
 	# Insert '|' before command letters (except first)
 	var regex_insert = RegEx.new()
-	regex_insert.compile("(?<!^)(?=[MLCQZmlcqz])")
+	regex_insert.compile("(?<!^)(?=[MLHVCQZmlhvcqz])")
 	svg_d = regex_insert.sub(svg_d, "|", true)
 	
 	# Normalize remaining extra spaces inside coords

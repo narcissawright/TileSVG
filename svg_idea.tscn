@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://cr36f8bsp27jj" path="res://svg_idea.gd" id="1_iqfwq"]
 [ext_resource type="Script" uid="uid://sljx3teypyhu" path="res://tool_selector.gd" id="2_f2px1"]
-[ext_resource type="Script" uid="uid://dkeidt2ddyn1y" path="res://palette.gd" id="2_i1q3w"]
+[ext_resource type="Script" uid="uid://dkeidt2ddyn1y" path="res://palette_test.gd" id="2_i1q3w"]
 [ext_resource type="Script" uid="uid://bjtf6u8ls3a82" path="res://svg_string.gd" id="4_nq4g0"]
 [ext_resource type="Script" uid="uid://ipp8rjuhrxdm" path="res://tile_selector.gd" id="5_b1etf"]
 [ext_resource type="Script" uid="uid://caeknp6owyyh7" path="res://saved_popup.gd" id="5_wkmia"]
@@ -109,17 +109,15 @@ offset_right = 72.0
 offset_bottom = 164.0
 
 [node name="ColorRect3" type="ColorRect" parent="Tool"]
-visible = false
-offset_left = 184.0
-offset_right = 256.0
-offset_bottom = 72.0
+offset_top = 184.0
+offset_right = 72.0
+offset_bottom = 256.0
 color = Color(0.333333, 0.333333, 0.333333, 1)
 
 [node name="Painter" type="TextureButton" parent="Tool"]
-visible = false
-offset_left = 184.0
-offset_right = 256.0
-offset_bottom = 72.0
+offset_top = 184.0
+offset_right = 72.0
+offset_bottom = 256.0
 
 [node name="HContainer" type="Node2D" parent="."]
 
