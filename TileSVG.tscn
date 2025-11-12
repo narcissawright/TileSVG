@@ -1,15 +1,15 @@
 [gd_scene load_steps=8 format=3 uid="uid://dgq3y1gmrollk"]
 
-[ext_resource type="Script" uid="uid://cr36f8bsp27jj" path="res://svg_idea.gd" id="1_iqfwq"]
-[ext_resource type="Script" uid="uid://sljx3teypyhu" path="res://tool_selector.gd" id="2_f2px1"]
-[ext_resource type="Script" uid="uid://dkeidt2ddyn1y" path="res://palette_test.gd" id="2_i1q3w"]
-[ext_resource type="Script" uid="uid://bjtf6u8ls3a82" path="res://svg_string.gd" id="4_nq4g0"]
-[ext_resource type="Script" uid="uid://ipp8rjuhrxdm" path="res://tile_selector.gd" id="5_b1etf"]
-[ext_resource type="Script" uid="uid://caeknp6owyyh7" path="res://saved_popup.gd" id="5_wkmia"]
-[ext_resource type="Script" uid="uid://b8h11vcldgawu" path="res://stats.gd" id="6_1gk3g"]
+[ext_resource type="Script" uid="uid://cr36f8bsp27jj" path="res://Editor.gd" id="1_uxm7i"]
+[ext_resource type="Script" uid="uid://sljx3teypyhu" path="res://tool_selector.gd" id="2_6pwys"]
+[ext_resource type="Script" uid="uid://dkeidt2ddyn1y" path="res://palette_test.gd" id="3_b2pjm"]
+[ext_resource type="Script" uid="uid://bjtf6u8ls3a82" path="res://svg_string.gd" id="4_7cklj"]
+[ext_resource type="Script" uid="uid://caeknp6owyyh7" path="res://saved_popup.gd" id="5_esr0g"]
+[ext_resource type="Script" uid="uid://b8h11vcldgawu" path="res://stats.gd" id="6_i3pte"]
+[ext_resource type="Script" uid="uid://ipp8rjuhrxdm" path="res://tile_selector.gd" id="7_0tk43"]
 
-[node name="SVGIdea" type="Node2D"]
-script = ExtResource("1_iqfwq")
+[node name="Editor" type="Node2D"]
+script = ExtResource("1_uxm7i")
 
 [node name="Labels" type="Node2D" parent="."]
 modulate = Color(1, 1, 1, 0.666667)
@@ -86,7 +86,7 @@ end_cap_mode = 1
 
 [node name="Tool" type="Node2D" parent="."]
 position = Vector2(20, 71)
-script = ExtResource("2_f2px1")
+script = ExtResource("2_6pwys")
 
 [node name="ColorRect2" type="ColorRect" parent="Tool"]
 offset_right = 72.0
@@ -125,7 +125,7 @@ offset_bottom = 256.0
 
 [node name="Palette" type="Node2D" parent="."]
 visible = false
-script = ExtResource("2_i1q3w")
+script = ExtResource("3_b2pjm")
 
 [node name="XML" type="Label" parent="."]
 offset_left = 714.0
@@ -135,7 +135,7 @@ offset_bottom = 860.0
 theme_override_colors/font_color = Color(0.535156, 0.535156, 0.535156, 1)
 theme_override_font_sizes/font_size = 8
 autowrap_mode = 3
-script = ExtResource("4_nq4g0")
+script = ExtResource("4_7cklj")
 
 [node name="CopiedPopup" type="Label" parent="."]
 unique_name_in_owner = true
@@ -162,7 +162,7 @@ theme_override_constants/shadow_offset_y = 2
 theme_override_font_sizes/font_size = 14
 text = "Saved!"
 autowrap_mode = 3
-script = ExtResource("5_wkmia")
+script = ExtResource("5_esr0g")
 
 [node name="Stats" type="Label" parent="."]
 offset_left = 287.0
@@ -174,7 +174,7 @@ text = "RenderCount: 0
 SaveCount: 0"
 horizontal_alignment = 2
 autowrap_mode = 3
-script = ExtResource("6_1gk3g")
+script = ExtResource("6_i3pte")
 
 [node name="Layers" type="Node2D" parent="."]
 
@@ -196,7 +196,7 @@ text = "Load"
 
 [node name="TileSelector" type="Node2D" parent="."]
 position = Vector2(514, 72)
-script = ExtResource("5_b1etf")
+script = ExtResource("7_0tk43")
 
 [connection signal="gui_input" from="XML" to="XML" method="_on_gui_input"]
 [connection signal="pressed" from="SaveButton" to="." method="_on_save_button_pressed"]
