@@ -1351,22 +1351,23 @@ func save_svg() -> void:
 	emit_signal('saved')
 
 func export_tileset(file_path: String = "user://tileset.svg") -> void:
-	var cols = 32
-	var rows = 8
-	var tile_w = 8
-	var tile_h = 12
-	
-	var svg_header = "<svg xmlns='http://www.w3.org/2000/svg' width='%d' height='%d'>" % [cols * tile_w, rows * tile_h]
+	var svg_header = "<svg xmlns='http://www.w3.org/2000/svg' width='%d' height='%d'>" % [TILE_COLUMNS * TILE_WIDTH, TILE_ROWS * TILE_HEIGHT]
 	var svg_content = ""
 	
 	for i in range(tiles.size()):
-		var tile_svg = tiles[i]  # your raw SVG string
-		var col = i % cols
+		var tile_svg = tiles[i]  # raw SVG string containing <path ...>
+		
+		# --- inject fill="white" into every path element ---
+		var tile_svg_filled = inject_white_fill(tile_svg)
+		
+		# placement
+		var col = i % TILE_COLUMNS
 		@warning_ignore("integer_division")
-		var row = i / cols
-		var x = col * tile_w
-		var y = row * tile_h
-		svg_content += "<g transform='translate(%d,%d)'>%s</g>" % [x, y, tile_svg]
+		var row = i / TILE_COLUMNS
+		var x = col * TILE_WIDTH
+		var y = row * TILE_HEIGHT
+		
+		svg_content += "<g transform='translate(%d,%d)'>%s</g>" % [x, y, tile_svg_filled]
 	
 	var svg_footer = "</svg>"
 	
@@ -1374,6 +1375,37 @@ func export_tileset(file_path: String = "user://tileset.svg") -> void:
 	file.store_string(svg_header + svg_content + svg_footer)
 	file.close()
 	print("Saved tileset to ", file_path)
+
+func inject_white_fill(svg_str: String) -> String:
+	var output := ""
+	var i := 0
+	while true:
+		var start := svg_str.find("<path", i)
+		if start == -1:
+			output += svg_str.substr(i)
+			break
+		output += svg_str.substr(i, start - i)
+		var end := svg_str.find(">", start)
+		if end == -1:
+			output += svg_str.substr(start)
+			break
+		var tag := svg_str.substr(start, end - start + 1)
+		# Already has fill?
+		if tag.find("fill=") != -1:
+			output += tag
+		else:
+			var self_closing := tag.find("/>") != -1 or tag.find(" />") != -1
+			if self_closing:
+				# Insert before "/>"
+				var idx := tag.rfind("/")
+				var new_tag := tag.substr(0, idx) + " fill=\"white\" />"
+				output += new_tag
+			else:
+				# Normal <path>…>
+				var new_tag := tag.substr(0, tag.length() - 1) + " fill=\"white\">"
+				output += new_tag
+		i = end + 1
+	return output
 
 
 func _on_load_button_pressed() -> void:
