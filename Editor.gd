@@ -376,6 +376,9 @@ func handle_key(event:InputEventKey) -> void:
 		KEY_F:
 			if event.pressed and local_context:
 				transform_path(selected_path_idx, 'flip_v')
+		KEY_S:
+			if event.pressed:
+				export_tileset()
 
 func transform_path(path_idx: int, mode: String) -> void:
 	if not path_exists(path_idx):
@@ -1346,7 +1349,32 @@ func save_svg() -> void:
 	tiles[current_tile_idx] = $XML.text
 	
 	emit_signal('saved')
+
+func export_tileset(file_path: String = "user://tileset.svg") -> void:
+	var cols = 32
+	var rows = 8
+	var tile_w = 8
+	var tile_h = 12
 	
+	var svg_header = "<svg xmlns='http://www.w3.org/2000/svg' width='%d' height='%d'>" % [cols * tile_w, rows * tile_h]
+	var svg_content = ""
+	
+	for i in range(tiles.size()):
+		var tile_svg = tiles[i]  # your raw SVG string
+		var col = i % cols
+		@warning_ignore("integer_division")
+		var row = i / cols
+		var x = col * tile_w
+		var y = row * tile_h
+		svg_content += "<g transform='translate(%d,%d)'>%s</g>" % [x, y, tile_svg]
+	
+	var svg_footer = "</svg>"
+	
+	var file = FileAccess.open(file_path, FileAccess.WRITE)
+	file.store_string(svg_header + svg_content + svg_footer)
+	file.close()
+	print("Saved tileset to ", file_path)
+
 
 func _on_load_button_pressed() -> void:
 	var svg_text:String = load_svg_text(current_tile_idx)

@@ -93,12 +93,12 @@ static func parse_svg_path(d: String) -> Array:
 					cur = Vector2(nums[5], nums[6])
 		result.append({"cmd": c, "nums": nums})
 	return result
+
 func get_numeric_string(num: float) -> String:
 	if is_equal_approx(num, floor(num)):
 		return str(int(num))
 	var s := str(num)
 	return s.rstrip("0").rstrip(".")
-
 
 func nums_to_strings(nums: Array) -> Array:
 	var out := []
