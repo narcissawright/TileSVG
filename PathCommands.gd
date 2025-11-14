@@ -93,37 +93,58 @@ static func parse_svg_path(d: String) -> Array:
 					cur = Vector2(nums[5], nums[6])
 		result.append({"cmd": c, "nums": nums})
 	return result
+func get_numeric_string(num: float) -> String:
+	if is_equal_approx(num, floor(num)):
+		return str(int(num))
+	var s := str(num)
+	return s.rstrip("0").rstrip(".")
+
+
+func nums_to_strings(nums: Array) -> Array:
+	var out := []
+	out.resize(nums.size())
+	for i in nums.size():
+		out[i] = get_numeric_string(nums[i])
+	return out
+
+
+var CMD_FORMATS := {
+	"M": { "group": 2, "fmt": "%s,%s " },
+	"L": { "group": 2, "fmt": "%s,%s " },
+	"T": { "group": 2, "fmt": "%s,%s " },
+
+	"Q": { "group": 4, "fmt": "%s,%s %s,%s " },
+	"S": { "group": 4, "fmt": "%s,%s %s,%s " },
+
+	"C": { "group": 6, "fmt": "%s,%s %s,%s %s,%s " },
+
+	"A": { "group": 7, "fmt": "%s %s %s %s %s %s,%s " },
+
+	"Z": { "group": 0, "fmt": "" }
+}
+
 
 func write_path() -> String:
-	var s := ""
+	var out := ""
+
 	for c in cmds:
-		s += c.cmd + " "
-		match c.cmd:
-			"M", "L", "T":
-				for i in range(0, c.nums.size(), 2):
-					s += "%s,%s " % [c.nums[i], c.nums[i+1]]
-			"C":
-				for i in range(0, c.nums.size(), 6):
-					s += "%s,%s %s,%s %s,%s " % [
-						c.nums[i], c.nums[i+1],
-						c.nums[i+2], c.nums[i+3],
-						c.nums[i+4], c.nums[i+5]
-					]
-			"Q","S":
-				for i in range(0, c.nums.size(), 4):
-					s += "%s,%s %s,%s " % [
-						c.nums[i], c.nums[i+1],
-						c.nums[i+2], c.nums[i+3]
-					]
-			"A":
-				for i in range(0, c.nums.size(), 7):
-					s += "%s %s %s %s %s %s,%s " % [
-						c.nums[i], c.nums[i+1], c.nums[i+2], c.nums[i+3], c.nums[i+4],
-						c.nums[i+5], c.nums[i+6]
-					]
-			"Z":
-				pass
-	return s.strip_edges()
+		out += c.cmd + " "
+
+		var n := nums_to_strings(c.nums)
+		var f = CMD_FORMATS[c.cmd]
+
+		var group = f.group
+		if group == 0:
+			continue
+
+		var fmt = f.fmt
+
+		for i in range(0, n.size(), group):
+			# Slice exactly the number of items needed for the pattern
+			var slice := n.slice(i, i + group)
+			out += fmt % slice
+
+	return out.strip_edges()
 
 func add_cmd(letter:String, nums:Array) -> void:
 	cmds.append({"cmd": letter, "nums": nums})

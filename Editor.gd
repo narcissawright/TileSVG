@@ -294,7 +294,7 @@ func handle_mouse_button(event:InputEventMouseButton) -> void:
 						var prev_selected = selected_path_idx
 						# Check if previous selection still contains the mouse
 						var keep_prev = false
-						if prev_selected != -1:
+						if prev_selected != -1 and path_exists(prev_selected):
 							var prev_cmds = PathCommands.new(paths[prev_selected])
 							if prev_cmds.is_point_inside(mouse_pt):
 								keep_prev = true
@@ -343,10 +343,11 @@ func handle_key(event:InputEventKey) -> void:
 					copied_path = ''
 		KEY_V:
 			# Handles both paste (control v) and vertical flip (v)
-			if event.pressed and local_context: # and $Tool.current == "selector":
+			if event.pressed: # and $Tool.current == "selector":
 				if event.ctrl_pressed:
+					# it's okay to paste a copied path if you just switched to a new tile
 					paste_copied_path()
-				else:
+				elif local_context:
 					transform_path(selected_path_idx, 'flip_v')
 		KEY_UP:
 			if event.pressed and local_context:

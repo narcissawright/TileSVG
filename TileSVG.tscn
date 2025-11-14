@@ -52,7 +52,7 @@ offset_top = 308.0
 offset_right = 900.0
 offset_bottom = 342.0
 theme_override_font_sizes/font_size = 24
-text = "XML"
+text = "SVG Text"
 
 [node name="CanvasBorder" type="Node2D" parent="."]
 
